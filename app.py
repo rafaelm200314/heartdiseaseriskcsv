@@ -1,0 +1,156 @@
+import json, joblib, pandas as pd, streamlit as st
+import matplotlib.pyplot as plt
+
+# ---------- Load model & metadata ----------
+@st.cache_resource
+def load_model_and_meta():
+    pipe = joblib.load('model_pipeline.pkl')
+    meta = json.load(open('feature_metadata.json'))
+    return pipe, meta
+
+pipe, meta = load_model_and_meta()
+num_feats = meta['num_feats']
+cat_feats = meta['cat_feats']
+
+# ---------- App layout ----------
+st.set_page_config(page_title='Heart-Disease Risk Predictor', page_icon='❤️', layout='centered')
+st.title('❤️ Heart-Disease Risk Predictor')
+
+# ---------- Sidebar instructions ----------
+with st.sidebar:
+    st.header("📘 How to Use")
+    st.markdown("""
+    - Fill in the patient's clinical and lifestyle details.
+    - Adjust the risk threshold if needed.
+    - Click **Predict** to view the risk status.
+    """)
+    threshold = st.slider('🔧 Risk threshold', 0.0, 1.0, 0.50, 0.01)
+
+# ---------- Input form ----------
+with st.form("input_form"):
+    st.header("Enter patient data")
+
+    # Numeric inputs
+    bmi = st.number_input('BMI', 10.0, 60.0, step=0.1)
+    physical_health = st.number_input('Physical Health (days)', 0.0, 30.0, step=1.0)
+    mental_health = st.number_input('Mental Health (days)', 0.0, 30.0, step=1.0)
+    sleep_time = st.number_input('Sleep Time (hours)', 0.0, 24.0, step=0.5)
+
+    # Categorical inputs
+    smoking = st.selectbox('Smoking', ['Yes', 'No'])
+    alcohol = st.selectbox('Alcohol Drinking', ['Yes', 'No'])
+    stroke = st.selectbox('Stroke', ['Yes', 'No'])
+    diff_walking = st.selectbox('Difficulty Walking', ['Yes', 'No'])
+    sex = st.selectbox('Sex', ['Male', 'Female'])
+    age_category = st.selectbox('Age Category', [
+        '18-24','25-29','30-34','35-39','40-44','45-49',
+        '50-54','55-59','60-64','65-69','70-74','75-79','80+'
+    ])
+    race = st.selectbox('Race', ['White', 'Black', 'Asian', 'American Indian/Alaskan Native', 'Other', 'Hispanic'])
+    diabetic = st.selectbox('Diabetic', ['Yes', 'No', 'No, borderline diabetes', 'Yes (during pregnancy)'])
+    physical_activity = st.selectbox('Physical Activity', ['Yes', 'No'])
+    gen_health = st.selectbox('General Health', ['Poor', 'Fair', 'Good', 'Very good', 'Excellent'])
+    asthma = st.selectbox('Asthma', ['Yes', 'No'])
+    kidney_disease = st.selectbox('Kidney Disease', ['Yes', 'No'])
+    skin_cancer = st.selectbox('Skin Cancer', ['Yes', 'No'])
+
+    submitted = st.form_submit_button("Predict")
+
+# ---------- Prediction ----------
+if submitted:
+    sample = pd.DataFrame([{
+        'BMI': bmi,
+        'PhysicalHealth': physical_health,
+        'MentalHealth': mental_health,
+        'SleepTime': sleep_time,
+        'Smoking': smoking,
+        'AlcoholDrinking': alcohol,
+        'Stroke': stroke,
+        'DiffWalking': diff_walking,
+        'Sex': sex,
+        'AgeCategory': age_category,
+        'Race': race,
+        'Diabetic': diabetic,
+        'PhysicalActivity': physical_activity,
+        'GenHealth': gen_health,
+        'Asthma': asthma,
+        'KidneyDisease': kidney_disease,
+        'SkinCancer': skin_cancer
+    }])
+
+    proba = pipe.predict_proba(sample)[0][1]
+    label = 'AT RISK' if proba >= threshold else 'Not At Risk'
+
+    st.subheader('🩺 Prediction Result')
+
+    if label == 'AT RISK':
+        st.error(f'⚠️ {label} (confidence {proba:.2%})')
+    else:
+        st.success(f'✅ {label} (confidence {proba:.2%})')
+
+    st.caption(f"Threshold used: {threshold:.2f}")
+
+# ---------- Optional: Feature importance chart ----------
+if st.checkbox("📊 Show top 10 most important features"):
+    try:
+        importances = pipe.named_steps['clf'].feature_importances_
+        raw_feat_names = pipe.named_steps['pre'].get_feature_names_out()
+
+        # Remove transformer prefixes like "cat__" and "num__"
+        clean_feat_names = [name.split("__")[1] if "__" in name else name for name in raw_feat_names]
+
+        # DataFrame of feature importances
+        imp_df = pd.DataFrame({
+            'feature': clean_feat_names,
+            'importance': importances
+        })
+
+        # Sort and get top 10
+        top10 = imp_df.sort_values(by='importance', ascending=False).head(10)
+
+        # Map to friendly display names (only for UI)
+        friendly_names = {
+            "DiffWalking_Yes": "Difficulty Walking (Yes)",
+            "DiffWalking_No": "Difficulty Walking (No)",
+            "Diabetic_Yes": "Diabetic",
+            "Diabetic_No": "Not Diabetic",
+            "GenHealth_Excellent": "Excellent General Health",
+            "GenHealth_Very good": "Very Good General Health",
+            "GenHealth_Good": "Good General Health",
+            "GenHealth_Fair": "Fair General Health",
+            "GenHealth_Poor": "Poor General Health",
+            "AgeCategory_65-69": "Age 65–69",
+            "AgeCategory_70-74": "Age 70–74",
+            "AgeCategory_75-79": "Age 75–79",
+            "AgeCategory_80+": "Age 80 or Older",
+            "Stroke_Yes": "Had Stroke",
+            "PhysicalActivity_Yes": "Physically Active",
+            "Sex_Male": "Male",
+            "Smoking_Yes": "Smoker",
+            "Smoking_no": "Non-Smoker",
+            "BMI": "Body Mass Index",
+            "KidneyDisease_Yes": "Has Kidney Disease",
+            "PhysicalHealth": "Physical Health (days)",
+            "MentalHealth": "Mental Health (days)",
+            "SleepTime": "Sleep Time (hrs)"
+            # Add more if needed
+        }
+
+        # Replace technical names with friendly names (if found)
+        top10['feature'] = top10['feature'].map(lambda x: friendly_names.get(x, x))
+
+        # Plot
+        fig, ax = plt.subplots()
+        top10.plot(kind='barh', x='feature', y='importance', ax=ax, legend=False, color='orange')
+        ax.invert_yaxis()
+        ax.set_title("Top 10 Most Important Features")
+        st.pyplot(fig)
+
+    except Exception as e:
+        st.warning("Feature importance could not be displayed.")
+        st.text(str(e))
+
+# ---------- Footer ----------
+st.markdown("---")
+st.caption("⚠️ This tool is for preliminary screening only. Always consult a licensed physician for diagnosis and treatment.")
+st.caption("Created by Rafael Mercado • July 2025")
