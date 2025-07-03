@@ -12,34 +12,38 @@ pipe, meta = load_model_and_meta()
 num_feats = meta['num_feats']
 cat_feats = meta['cat_feats']
 
-# ---------- App layout ----------
-st.set_page_config(page_title='Heart-Disease Risk Predictor', page_icon='❤️', layout='centered')
-st.title('❤️ Heart-Disease Risk Predictor')
+# ---------- Page Config ----------
+st.set_page_config(
+    page_title='Heart Disease Risk Predictor',
+    layout='centered'
+)
+
+st.title("Heart Disease Risk Predictor")
 
 # ---------- Sidebar instructions ----------
 with st.sidebar:
-    st.header("📘 How to Use")
+    st.header("How to Use")
     st.markdown("""
-    - Fill in the patient's clinical and lifestyle details.
-    - Adjust the risk threshold if needed.
-    - Click **Predict** to view the risk status.
+    1. Fill in the patient's clinical and lifestyle details.
+    2. Adjust the risk threshold if needed.
+    3. Click **Predict** to view the risk status and confidence score.
     """)
-    threshold = st.slider('🔧 Risk threshold', 0.0, 1.0, 0.50, 0.01)
+    threshold = st.slider('Risk Threshold', 0.0, 1.0, 0.50, 0.01)
 
-# ---------- Input form ----------
+# ---------- Input Form ----------
 with st.form("input_form"):
-    st.header("Enter patient data")
+    st.subheader("Patient Information")
 
-    # Numeric inputs
-    bmi = st.number_input('BMI', 10.0, 60.0, step=0.1)
-    physical_health = st.number_input('Physical Health (days)', 0.0, 30.0, step=1.0)
-    mental_health = st.number_input('Mental Health (days)', 0.0, 30.0, step=1.0)
-    sleep_time = st.number_input('Sleep Time (hours)', 0.0, 24.0, step=0.5)
+    st.markdown("### Numeric Details")
+    bmi = st.number_input('BMI (Body Mass Index)', 10.0, 60.0, step=0.1)
+    physical_health = st.number_input('Physical Health (days unwell in past 30)', 0.0, 30.0, step=1.0)
+    mental_health = st.number_input('Mental Health (days unwell in past 30)', 0.0, 30.0, step=1.0)
+    sleep_time = st.number_input('Sleep Time (average hours per day)', 0.0, 24.0, step=0.5)
 
-    # Categorical inputs
+    st.markdown("### Medical & Lifestyle Details")
     smoking = st.selectbox('Smoking', ['Yes', 'No'])
     alcohol = st.selectbox('Alcohol Drinking', ['Yes', 'No'])
-    stroke = st.selectbox('Stroke', ['Yes', 'No'])
+    stroke = st.selectbox('Stroke History', ['Yes', 'No'])
     diff_walking = st.selectbox('Difficulty Walking', ['Yes', 'No'])
     sex = st.selectbox('Sex', ['Male', 'Female'])
     age_category = st.selectbox('Age Category', [
@@ -47,7 +51,7 @@ with st.form("input_form"):
         '50-54','55-59','60-64','65-69','70-74','75-79','80+'
     ])
     race = st.selectbox('Race', ['White', 'Black', 'Asian', 'American Indian/Alaskan Native', 'Other', 'Hispanic'])
-    diabetic = st.selectbox('Diabetic', ['Yes', 'No', 'No, borderline diabetes', 'Yes (during pregnancy)'])
+    diabetic = st.selectbox('Diabetic Status', ['Yes', 'No', 'No, borderline diabetes', 'Yes (during pregnancy)'])
     physical_activity = st.selectbox('Physical Activity', ['Yes', 'No'])
     gen_health = st.selectbox('General Health', ['Poor', 'Fair', 'Good', 'Very good', 'Excellent'])
     asthma = st.selectbox('Asthma', ['Yes', 'No'])
@@ -56,7 +60,7 @@ with st.form("input_form"):
 
     submitted = st.form_submit_button("Predict")
 
-# ---------- Prediction ----------
+# ---------- Prediction Output ----------
 if submitted:
     sample = pd.DataFrame([{
         'BMI': bmi,
@@ -81,15 +85,13 @@ if submitted:
     proba = pipe.predict_proba(sample)[0][1]
     label = 'AT RISK' if proba >= threshold else 'Not At Risk'
 
-    st.subheader('🩺 Prediction Result')
-
+    st.subheader("Prediction Result")
     if label == 'AT RISK':
-        st.error(f'⚠️ {label} (confidence {proba:.2%})')
+        st.error(f'{label}  (Confidence: {proba:.2%})')
     else:
-        st.success(f'✅ {label} (confidence {proba:.2%})')
+        st.success(f'{label}  (Confidence: {proba:.2%})')
 
     st.caption(f"Threshold used: {threshold:.2f}")
-
 # ---------- Optional: Feature importance chart ----------
 if st.checkbox("📊 Show top 10 most important features"):
     try:
@@ -122,7 +124,7 @@ if st.checkbox("📊 Show top 10 most important features"):
             "AgeCategory_65-69": "Age 65–69",
             "AgeCategory_70-74": "Age 70–74",
             "AgeCategory_75-79": "Age 75–79",
-            "AgeCategory_80+": "Age 80 or Older",
+            "AgeCategory_80 or older": "Age 80 or Older",
             "Stroke_Yes": "Had Stroke",
             "PhysicalActivity_Yes": "Physically Active",
             "Sex_Male": "Male",
